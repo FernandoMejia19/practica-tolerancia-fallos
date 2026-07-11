@@ -13,7 +13,8 @@ CREATE TABLE asientos (
     id_asiento SERIAL PRIMARY KEY,
     id_evento INT NOT NULL,
     numero VARCHAR(10) NOT NULL,
-    estado VARCHAR(20) NOT NULL DEFAULT 'DISPONIBLE',
+    estado VARCHAR(20) NOT NULL DEFAULT 'DISPONIBLE'
+	CHECK (estado IN ('DISPONIBLE','RESERVADO','VENDIDO')),
 
     CONSTRAINT fk_evento
         FOREIGN KEY(id_evento)
@@ -106,3 +107,8 @@ INSERT INTO notificaciones(id_reserva,correo,estado)
 VALUES
 (1,'juan@email.com','ENVIADO'),
 (2,'maria@email.com','PENDIENTE');
+
+
+SELECT * FROM RESERVAS;
+
+
