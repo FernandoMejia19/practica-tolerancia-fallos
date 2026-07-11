@@ -1,9 +1,9 @@
 // Configuración de endpoints del Backend. 
 // Ajustar según el puerto de despliegue local o la IP del Gateway de Kubernetes.
 const API_URLS = {
-    reservas: 'http://localhost:8000/reservations',
-    pagos: 'http://localhost:8000/payments', // Ajustar si corre en puerto individual (ej. 8002)
-    notificaciones: 'http://localhost:8000/notifications' // Ajustar si corre en puerto individual (ej. 8003)
+    reservas: '/reservations',
+    pagos: '/payments',
+    notificaciones: '/notifications'
 };
 
 // Listado de eventos precargados que corresponden a los datos insertados en init.sql

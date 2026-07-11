@@ -11,3 +11,6 @@ __pycache__/
 
 # Configuración de VS Code
 .vscode/
+practica.md
+chaos_scenarios.md
+frontend.yaml
