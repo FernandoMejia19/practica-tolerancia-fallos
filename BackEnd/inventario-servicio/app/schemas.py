@@ -1,21 +1,17 @@
 from pydantic import BaseModel
 
 
-class InventarioCreate(BaseModel):
-
-    nombre_evento:str
-    cantidad_total:int
-    disponibles:int
-
-
-
-class InventarioResponse(BaseModel):
-
-    id:int
-    nombre_evento:str
-    cantidad_total:int
-    disponibles:int
-
+class AsientoResponse(BaseModel):
+    id_asiento: int
+    id_evento: int
+    numero: str
+    estado: str
 
     class Config:
-        from_attributes=True
+        from_attributes = True
+
+
+class ReservaAsientoResponse(BaseModel):
+    id_asiento: int
+    estado: str
+    mensaje: str
