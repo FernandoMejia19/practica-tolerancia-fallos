@@ -1,32 +1,31 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, ForeignKey, Integer, String
+##from sqlalchemy.orm import relationship
+
 from .database import Base
 
 
-class Inventario(Base):
+class Asiento(Base):
+    __tablename__ = "asientos"
 
-    __tablename__ = "inventario"
-
-
-    id = Column(
+    id_asiento = Column(
         Integer,
         primary_key=True,
         index=True
     )
 
-
-    nombre_evento = Column(
-        String,
+    id_evento = Column(
+        Integer,
+        ForeignKey("eventos.id_evento"),
         nullable=False
     )
 
-
-    cantidad_total = Column(
-        Integer,
+    numero = Column(
+        String(10),
         nullable=False
     )
 
-
-    disponibles = Column(
-        Integer,
-        nullable=False
+    estado = Column(
+        String(20),
+        nullable=False,
+        default="DISPONIBLE"
     )

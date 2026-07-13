@@ -1,81 +1,129 @@
+from .clients.inventory_client import (
+    InventoryUnavailableError,
+    SeatUnavailableError,
+    reservar_asiento_con_retry
+)
 from .database import get_connection
 
 
 def crear_reserva(reserva):
-
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    query = """
-        INSERT INTO reservas(id_asiento,cliente,correo)
-        VALUES(%s,%s,%s)
-        RETURNING id_reserva;
+    """
+    Primero solicita a Inventario la retención del asiento.
+    Solo si Inventario confirma, se registra la reserva.
     """
 
-    cursor.execute(
-        query,
-        (
-            reserva.id_asiento,
-            reserva.cliente,
-            reserva.correo
-        )
+    reservar_asiento_con_retry(
+        id_asiento=reserva.id_asiento
     )
 
-    reserva_id = cursor.fetchone()[0]
+    conn = None
 
-    conn.commit()
+    try:
+        conn = get_connection()
 
-    cursor.close()
-    conn.close()
+        with conn.cursor() as cursor:
+            query = """
+                INSERT INTO reservas(
+                    id_asiento,
+                    cliente,
+                    correo,
+                    estado
+                )
+                VALUES (%s, %s, %s, 'PENDIENTE')
+                RETURNING id_reserva;
+            """
 
-    return reserva_id
+            cursor.execute(
+                query,
+                (
+                    reserva.id_asiento,
+                    reserva.cliente,
+                    reserva.correo
+                )
+            )
+
+            reserva_id = cursor.fetchone()[0]
+
+        conn.commit()
+        return reserva_id
+
+    except Exception:
+        if conn is not None:
+            conn.rollback()
+
+        raise
+
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def obtener_reservas():
-
     conn = get_connection()
 
-    cursor = conn.cursor()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    id_reserva,
+                    id_asiento,
+                    cliente,
+                    correo,
+                    estado
+                FROM reservas
+                ORDER BY id_reserva;
+                """
+            )
 
-    cursor.execute("""
-        SELECT
-            id_reserva,
-            id_asiento,
-            cliente,
-            correo,
-            estado
-        FROM reservas
-        ORDER BY id_reserva;
-    """)
+            filas = cursor.fetchall()
 
-    reservas = cursor.fetchall()
+        return [
+            {
+                "id_reserva": fila[0],
+                "id_asiento": fila[1],
+                "cliente": fila[2],
+                "correo": fila[3],
+                "estado": fila[4]
+            }
+            for fila in filas
+        ]
 
-    cursor.close()
-    conn.close()
-
-    return reservas
+    finally:
+        conn.close()
 
 
 def obtener_reserva(id_reserva):
-
     conn = get_connection()
 
-    cursor = conn.cursor()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    id_reserva,
+                    id_asiento,
+                    cliente,
+                    correo,
+                    estado
+                FROM reservas
+                WHERE id_reserva = %s;
+                """,
+                (id_reserva,)
+            )
 
-    cursor.execute("""
-        SELECT
-            id_reserva,
-            id_asiento,
-            cliente,
-            correo,
-            estado
-        FROM reservas
-        WHERE id_reserva=%s;
-    """,(id_reserva,))
+            fila = cursor.fetchone()
 
-    reserva = cursor.fetchone()
+        if fila is None:
+            return None
 
-    cursor.close()
-    conn.close()
+        return {
+            "id_reserva": fila[0],
+            "id_asiento": fila[1],
+            "cliente": fila[2],
+            "correo": fila[3],
+            "estado": fila[4]
+        }
 
-    return reserva
+    finally:
+        conn.close()

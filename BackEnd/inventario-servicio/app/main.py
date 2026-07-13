@@ -1,36 +1,27 @@
 from fastapi import FastAPI
 
-from .database import Base, engine
-
 from .routes import router
 
 
-
-Base.metadata.create_all(
-    bind=engine
-)
-
-
-
 app = FastAPI(
-    title="Inventario Servicio",
-    version="1.0"
+    title="Inventory Service",
+    version="2.0"
 )
-
-
 
 app.include_router(router)
 
 
-
 @app.get("/")
 def root():
-
     return {
+        "service": "inventory-service",
+        "status": "running"
+    }
 
-        "servicio":
-        "inventario-servicio",
 
-        "estado":
-        "activo"
+@app.get("/health")
+def health():
+    return {
+        "service": "inventory-service",
+        "status": "healthy"
     }
