@@ -115,3 +115,99 @@ def reservar_asiento_con_retry(
     raise InventoryUnavailableError(
         "No fue posible comunicarse con Inventario"
     )
+    
+def confirmar_asiento(
+    id_asiento: int,
+    timeout_segundos: int = 3
+) -> dict:
+    url = (
+        f"{INVENTORY_URL}/inventory/"
+        f"seats/{id_asiento}/confirm"
+    )
+
+    try:
+        response = requests.post(
+            url,
+            timeout=timeout_segundos
+        )
+
+        response.raise_for_status()
+        return response.json()
+
+    except requests.RequestException as error:
+        logger.error(
+            "No fue posible confirmar el asiento %s: %s",
+            id_asiento,
+            error
+        )
+
+        raise InventoryUnavailableError(
+            "No fue posible confirmar el asiento"
+        ) from error
+
+
+def liberar_asiento(
+    id_asiento: int,
+    timeout_segundos: int = 5
+) -> dict | None:
+    url = (
+        f"{INVENTORY_URL}/inventory/"
+        f"seats/{id_asiento}/release"
+    )
+
+    logger.info(
+        "Solicitando liberación del asiento %s en %s",
+        id_asiento,
+        url
+    )
+
+    try:
+        response = requests.post(
+            url,
+            timeout=timeout_segundos
+        )
+
+        logger.info(
+            "Inventario respondió HTTP %s al liberar asiento %s",
+            response.status_code,
+            id_asiento
+        )
+
+        if response.status_code == 200:
+            return response.json()
+
+        logger.error(
+            "No fue posible liberar el asiento %s. "
+            "Respuesta: %s",
+            id_asiento,
+            response.text
+        )
+
+        return None
+
+    except requests.Timeout as error:
+        logger.error(
+            "Timeout liberando asiento %s: %s",
+            id_asiento,
+            error
+        )
+
+        return None
+
+    except requests.ConnectionError as error:
+        logger.error(
+            "Error de conexión liberando asiento %s: %s",
+            id_asiento,
+            error
+        )
+
+        return None
+
+    except requests.RequestException as error:
+        logger.error(
+            "Error HTTP liberando asiento %s: %s",
+            id_asiento,
+            error
+        )
+
+        return None

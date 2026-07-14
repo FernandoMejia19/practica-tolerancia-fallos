@@ -43,6 +43,14 @@ spec:
               value: postgres
             - name: DB_PASSWORD
               value: fernando192001
+            - name: INVENTORY_URL
+              value: http://inventario-service:8000
+
+            - name: PAYMENTS_URL
+              value: http://pagos-service:8000
+
+            - name: PAYMENT_TIMEOUT
+              value: "3"
 ---
 apiVersion: v1
 kind: Service

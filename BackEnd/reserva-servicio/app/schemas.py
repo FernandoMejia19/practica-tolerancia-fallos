@@ -1,10 +1,11 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class ReservaCreate(BaseModel):
     id_asiento: int
     cliente: str
     correo: EmailStr
+    monto: float = Field(gt=0)
 
 
 class ReservaResponse(BaseModel):

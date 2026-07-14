@@ -19,7 +19,15 @@ def create(
     simular_demora: int = Query(0, description="Simular demora/latencia en segundos en el procesamiento del pago")
 ):
     if simular_demora > 0:
-        time.sleep(simular_demora)
+       time.sleep(simular_demora)
+
+       raise HTTPException(
+           status_code=504,
+           detail=(
+            "La pasarela de pagos superó "
+            "el tiempo máximo de respuesta"
+           )
+        )
 
     if simular_fallo:
         try:

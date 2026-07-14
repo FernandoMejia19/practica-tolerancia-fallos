@@ -100,12 +100,18 @@ def liberar(
     id_asiento: int,
     db: Session = Depends(get_db)
 ):
-    asiento = liberar_asiento(db, id_asiento)
+    asiento = liberar_asiento(
+        db,
+        id_asiento
+    )
 
     if asiento is None:
         raise HTTPException(
             status_code=409,
-            detail="El asiento no puede liberarse"
+            detail=(
+                "El asiento no existe o "
+                "no está en estado RESERVADO"
+            )
         )
 
     return {
