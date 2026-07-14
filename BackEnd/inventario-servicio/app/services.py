@@ -37,33 +37,57 @@ def reservar_asiento(db: Session, id_asiento: int):
     return obtener_asiento(db, id_asiento)
 
 
-def confirmar_asiento(db: Session, id_asiento: int):
-    asiento = obtener_asiento(db, id_asiento)
+def confirmar_asiento(
+    db: Session,
+    id_asiento: int
+):
+    filas_actualizadas = (
+        db.query(Asiento)
+        .filter(
+            Asiento.id_asiento == id_asiento,
+            Asiento.estado == "RESERVADO"
+        )
+        .update(
+            {"estado": "VENDIDO"},
+            synchronize_session=False
+        )
+    )
 
-    if asiento is None:
+    if filas_actualizadas == 0:
+        db.rollback()
         return None
 
-    if asiento.estado != "RESERVADO":
-        return None
-
-    asiento.estado = "VENDIDO"
     db.commit()
-    db.refresh(asiento)
 
-    return asiento
+    return obtener_asiento(
+        db,
+        id_asiento
+    )
 
 
-def liberar_asiento(db: Session, id_asiento: int):
-    asiento = obtener_asiento(db, id_asiento)
+def liberar_asiento(
+    db: Session,
+    id_asiento: int
+):
+    filas_actualizadas = (
+        db.query(Asiento)
+        .filter(
+            Asiento.id_asiento == id_asiento,
+            Asiento.estado == "RESERVADO"
+        )
+        .update(
+            {"estado": "DISPONIBLE"},
+            synchronize_session=False
+        )
+    )
 
-    if asiento is None:
+    if filas_actualizadas == 0:
+        db.rollback()
         return None
 
-    if asiento.estado != "RESERVADO":
-        return None
-
-    asiento.estado = "DISPONIBLE"
     db.commit()
-    db.refresh(asiento)
 
-    return asiento
+    return obtener_asiento(
+        db,
+        id_asiento
+    )
