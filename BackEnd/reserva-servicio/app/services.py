@@ -6,6 +6,10 @@ from .clients.inventory_client import (
     liberar_asiento,
     reservar_asiento_con_retry,
 )
+from .clients.notification_client import (
+    NotificationUnavailableError,
+    enviar_notificacion,
+)
 from .clients.payment_client import procesar_pago
 from .database import get_connection
 
@@ -224,20 +228,9 @@ def crear_reserva(
     reserva: Any,
     simular_demora_pago: int = 0,
     simular_fallo_pago: bool = False,
+    simular_fallo_notificacion: bool = False,
+    simular_demora_notificacion: int = 0,
 ) -> dict[str, Any]:
-    """
-    Ejecuta el flujo completo de reserva:
-
-    1. Retiene el asiento en Inventario.
-    2. Crea la reserva como PENDIENTE.
-    3. Procesa el pago.
-    4. Confirma el asiento.
-    5. Cambia la reserva a CONFIRMADA.
-
-    Si ocurre un error:
-    - cambia la reserva a CANCELADA;
-    - libera el asiento retenido.
-    """
 
     asiento_retenido = False
     id_reserva = None
@@ -249,17 +242,7 @@ def crear_reserva(
 
         asiento_retenido = True
 
-        logger.info(
-            "Asiento %s retenido temporalmente",
-            reserva.id_asiento,
-        )
-
         id_reserva = insertar_reserva(reserva)
-
-        logger.info(
-            "Reserva %s creada en estado PENDIENTE",
-            id_reserva,
-        )
 
         pago = procesar_pago(
             id_reserva=id_reserva,
@@ -279,15 +262,47 @@ def crear_reserva(
             "CONFIRMADA",
         )
 
-        logger.info(
-            "Reserva %s confirmada correctamente",
-            id_reserva,
-        )
+        try:
+            resultado_notificacion = (
+                enviar_notificacion(
+                    id_reserva=id_reserva,
+                    correo=str(reserva.correo),
+                    simular_fallo=(
+                        simular_fallo_notificacion
+                    ),
+                    simular_demora=(
+                        simular_demora_notificacion
+                    ),
+                )
+            )
+
+            notificacion = {
+                "estado": "ENVIADA",
+                "detalle": resultado_notificacion,
+            }
+
+        except NotificationUnavailableError as error:
+            logger.warning(
+                "Fallback activado para "
+                "la reserva %s: %s",
+                id_reserva,
+                error,
+            )
+
+            notificacion = {
+                "estado": "PENDIENTE",
+                "mensaje": (
+                    "La compra fue confirmada, "
+                    "pero el correo se enviará "
+                    "posteriormente."
+                ),
+            }
 
         return {
             "id_reserva": id_reserva,
             "estado": "CONFIRMADA",
             "pago": pago,
+            "notificacion": notificacion,
         }
 
     except Exception as error:
@@ -303,39 +318,24 @@ def crear_reserva(
                     "CANCELADA",
                 )
 
-                logger.info(
-                    "Reserva %s cambiada a CANCELADA",
-                    id_reserva,
-                )
-
             except Exception as update_error:
                 logger.error(
-                    "No se pudo cancelar la reserva %s: %s",
+                    "No se pudo cancelar "
+                    "la reserva %s: %s",
                     id_reserva,
                     update_error,
                 )
 
         if asiento_retenido:
             try:
-                resultado = liberar_asiento(
+                liberar_asiento(
                     reserva.id_asiento
                 )
 
-                if resultado is not None:
-                    logger.info(
-                        "Asiento %s liberado por compensación",
-                        reserva.id_asiento,
-                    )
-                else:
-                    logger.error(
-                        "Inventario no confirmó la liberación "
-                        "del asiento %s",
-                        reserva.id_asiento,
-                    )
-
             except Exception as release_error:
                 logger.error(
-                    "Falló la compensación del asiento %s: %s",
+                    "No se pudo liberar "
+                    "el asiento %s: %s",
                     reserva.id_asiento,
                     release_error,
                 )

@@ -33,12 +33,16 @@ services:
       INVENTORY_URL: http://inventario-service:8000
       PAYMENTS_URL: http://pagos-service:8000
       PAYMENT_TIMEOUT: "3"
+      NOTIFICATIONS_URL: http://notificaciones-service:8000
+      NOTIFICATION_TIMEOUT: "3"
     depends_on:
       postgres:
         condition: service_healthy
       inventario-service:
         condition: service_started
       pagos-service:
+        condition: service_started
+      notificaciones-service :
         condition: service_started
     networks:
       - tickethub-network

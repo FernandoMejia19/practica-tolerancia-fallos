@@ -150,170 +150,191 @@ function showStatus(message, type) {
 btnCheckout.addEventListener('click', async () => {
     const clientName = clientNameInput.value.trim();
     const clientEmail = clientEmailInput.value.trim();
-    
+
     if (!clientName || !clientEmail) {
-        showStatus('Por favor complete su nombre y correo.', 'error');
+        showStatus(
+            'Por favor complete su nombre y correo.',
+            'error'
+        );
         return;
     }
-    
-    // Validación básica de email
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     if (!emailRegex.test(clientEmail)) {
-        showStatus('Por favor ingrese un correo válido.', 'error');
+        showStatus(
+            'Por favor ingrese un correo válido.',
+            'error'
+        );
         return;
     }
-    
-    btnCheckout.disabled = true;
-    showStatus('Procesando compra en los servidores...', 'loading');
-    
-    let summaryText = 'Resumen de la Compra:\n';
-    let total = 0;
+
     const checkoutItems = [];
-    
+
     EVENTS.forEach(event => {
         const qty = cart[event.id];
+
         if (qty > 0) {
-            const subtotal = qty * event.precio;
-            total += subtotal;
-            summaryText += `- ${event.nombre} x${qty}: $${subtotal.toFixed(2)}\n`;
             checkoutItems.push({
-                event: event,
-                qty: qty,
-                subtotal: subtotal
+                event,
+                qty
             });
         }
     });
-    
-    summaryText += `Total: $${total.toFixed(2)}\n\n`;
-    
-    // Intentar llamadas a microservicios del Backend (Tolerancia a fallos en el frontend)
-    let reservationSuccess = true;
-    let paymentSuccess = true;
-    let notificationSuccess = true;
-    let errorDetails = '';
-    
-    const reservationsCreated = [];
-    
-    try {
-        // 1. Crear reservas para cada ticket seleccionado
-        for (const item of checkoutItems) {
-            for (let i = 0; i < item.qty; i++) {
-                // Seleccionar un ID de asiento secuencial
-                const seatId = item.event.asientos[i];
-                
-                try {
-                    const resReserva = await fetch(API_URLS.reservas, {
+
+    if (checkoutItems.length === 0) {
+        showStatus(
+            'Seleccione al menos una entrada.',
+            'error'
+        );
+        return;
+    }
+
+    btnCheckout.disabled = true;
+
+    showStatus(
+        'Procesando compra en los servidores...',
+        'loading'
+    );
+
+    const resultados = [];
+    const errores = [];
+
+    for (const item of checkoutItems) {
+        for (let i = 0; i < item.qty; i++) {
+            const seatId = item.event.asientos[i];
+
+            try {
+                const response = await fetch(
+                    API_URLS.reservas,
+                    {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
                         body: JSON.stringify({
                             id_asiento: seatId,
                             cliente: clientName,
-                            correo: clientEmail
+                            correo: clientEmail,
+                            monto: item.event.precio
                         })
-                    });
-                    
-                    if (!resReserva.ok) {
-                        throw new Error(`Código de estado ${resReserva.status}`);
                     }
-                    
-                    const dataReserva = await resReserva.json();
-                    reservationsCreated.push({
-                        id_reserva: dataReserva.id_reserva,
-                        monto: item.event.precio
-                    });
-                } catch (e) {
-                    reservationSuccess = false;
-                    errorDetails += `[Servicio Reservas] Falla al reservar asiento ${seatId}: ${e.message}\n`;
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    const detalle =
+                        typeof data.detail === 'string'
+                            ? data.detail
+                            : JSON.stringify(data.detail);
+
+                    throw new Error(
+                        `HTTP ${response.status}: ${detalle}`
+                    );
                 }
+
+                resultados.push({
+                    evento: item.event.nombre,
+                    asiento: seatId,
+                    precio: item.event.precio,
+                    reserva: data
+                });
+
+            } catch (error) {
+                errores.push({
+                    evento: item.event.nombre,
+                    asiento: seatId,
+                    mensaje: error.message
+                });
             }
         }
-        
-        // 2. Procesar pagos para las reservas creadas
-        if (reservationSuccess && reservationsCreated.length > 0) {
-            for (const res of reservationsCreated) {
-                try {
-                    const resPago = await fetch(API_URLS.pagos, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            id_reserva: res.id_reserva,
-                            monto: res.monto
-                        })
-                    });
-                    
-                    if (!resPago.ok) {
-                        throw new Error(`Código de estado ${resPago.status}`);
-                    }
-                } catch (e) {
-                    paymentSuccess = false;
-                    errorDetails += `[Servicio Pagos] Falla al procesar pago para reserva #${res.id_reserva}: ${e.message}\n`;
-                }
-            }
-        }
-        
-        // 3. Enviar notificaciones para las reservas confirmadas
-        if (reservationSuccess && paymentSuccess && reservationsCreated.length > 0) {
-            for (const res of reservationsCreated) {
-                try {
-                    const resNotif = await fetch(API_URLS.notificaciones, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            id_reserva: res.id_reserva,
-                            correo: clientEmail
-                        })
-                    });
-                    
-                    if (!resNotif.ok) {
-                        throw new Error(`Código de estado ${resNotif.status}`);
-                    }
-                } catch (e) {
-                    notificationSuccess = false;
-                    errorDetails += `[Servicio Notificaciones] Falla al notificar reserva #${res.id_reserva}: ${e.message}\n`;
-                }
-            }
-        }
-        
-    } catch (globalError) {
-        reservationSuccess = false;
-        errorDetails += `Error global en la conexión: ${globalError.message}\n`;
     }
-    
-    // Decisión de visualización basada en la tolerancia a fallos
-    let messageType = 'success';
-    let finalAlertText = '';
-    
-    if (reservationSuccess && paymentSuccess && notificationSuccess) {
-        showStatus('¡Compra completada con éxito en todos los servicios!', 'success');
-        finalAlertText = `¡Compra Finalizada Exitosamente!\n\n${summaryText}El pago ha sido acreditado y se ha enviado la notificación por correo electrónico.`;
-    } else {
-        // Comportamiento resiliente (degradación elegante en el cliente)
-        messageType = 'error';
-        showStatus('Compra procesada de forma local con advertencias de servicios.', 'error');
-        finalAlertText = `Compra procesada con advertencias (Resiliencia local activada):\n\n${summaryText}Estado de servicios:\n- Reservas: ${reservationSuccess ? 'OK' : 'FALLÓ'}\n- Pagos: ${paymentSuccess ? 'OK' : 'FALLÓ'}\n- Notificaciones: ${notificationSuccess ? 'OK' : 'FALLÓ'}\n\nDetalles del fallo:\n${errorDetails || 'N/A'}`;
-    }
-    
-    // Mostrar alert resumen obligatorio
-    alert(finalAlertText);
-    
-    // Reiniciar todas las cantidades a 0 (Limpiar Carrito)
-    EVENTS.forEach(event => {
-        cart[event.id] = 0;
-        document.getElementById(`counter-${event.id}`).textContent = '0';
-    });
-    
-    // Limpiar campos de texto
-    clientNameInput.value = '';
-    clientEmailInput.value = '';
-    
-    // Actualizar UI del carrito
-    updateCart();
-    
-    // Ocultar caja de estado después de limpiar
-    const statusBox = document.getElementById('status-box');
-    if (statusBox) statusBox.style.display = 'none';
+
+    mostrarResultadoCompra(
+        resultados,
+        errores
+    );
+
+    btnCheckout.disabled = false;
 });
 
+function mostrarResultadoCompra(
+    resultados,
+    errores
+) {
+    let mensaje = '';
+
+    if (resultados.length > 0) {
+        mensaje += 'COMPRAS PROCESADAS\n\n';
+
+        resultados.forEach(resultado => {
+            const reserva = resultado.reserva;
+
+            const estadoNotificacion =
+                reserva.notificacion?.estado
+                || 'NO INFORMADO';
+
+            mensaje +=
+                `Evento: ${resultado.evento}\n` +
+                `Asiento: ${resultado.asiento}\n` +
+                `Reserva: #${reserva.id_reserva}\n` +
+                `Estado: ${reserva.estado}\n` +
+                `Pago: ${reserva.pago?.estado || 'NO INFORMADO'}\n` +
+                `Notificación: ${estadoNotificacion}\n\n`;
+        });
+    }
+
+    if (errores.length > 0) {
+        mensaje += 'ERRORES CONTROLADOS\n\n';
+
+        errores.forEach(error => {
+            mensaje +=
+                `Evento: ${error.evento}\n` +
+                `Asiento: ${error.asiento}\n` +
+                `Detalle: ${error.mensaje}\n\n`;
+        });
+    }
+
+    if (
+        resultados.length > 0
+        && errores.length === 0
+    ) {
+        showStatus(
+            'Compra procesada correctamente.',
+            'success'
+        );
+
+    } else if (resultados.length > 0) {
+        showStatus(
+            'La compra se procesó parcialmente.',
+            'error'
+        );
+
+    } else {
+        showStatus(
+            'No fue posible procesar la compra.',
+            'error'
+        );
+    }
+
+    alert(mensaje);
+
+    if (resultados.length > 0) {
+        EVENTS.forEach(event => {
+            cart[event.id] = 0;
+
+            document.getElementById(
+                `counter-${event.id}`
+            ).textContent = '0';
+        });
+
+        clientNameInput.value = '';
+        clientEmailInput.value = '';
+
+        updateCart();
+    }
+}
 // Render inicial
 renderEvents();
 updateCart();

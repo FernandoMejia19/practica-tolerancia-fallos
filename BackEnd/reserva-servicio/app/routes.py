@@ -28,7 +28,13 @@ def create(
         ge=0,
         le=30
     ),
-    simular_fallo_pago: bool = Query(False)
+    simular_fallo_pago: bool = Query(False),
+    simular_fallo_notificacion: bool = Query(False),
+    simular_demora_notificacion: int = Query(
+        0,
+        ge=0,
+        le=30
+    ),
 ):
     try:
         resultado = crear_reserva(
